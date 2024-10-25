@@ -38,14 +38,9 @@ const rankIcons = {
   3: <Award className="h-5 w-5 text-amber-600" />,
 };
 
-export function Leaderboard({
-  contract,
-  provider,
-  isConnected,
-}: LeaderboardProps) {
+export function Leaderboard({ contract, isConnected }: LeaderboardProps) {
   const [loading, setLoading] = useState(true);
   const [topPlayers, setTopPlayers] = useState<PlayerScore[]>([]);
-  const [activeTab, setActiveTab] = useState("daily");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchLeaderboard = async () => {
@@ -135,7 +130,7 @@ interface LeaderboardTableProps {
   title: string;
 }
 
-function LeaderboardTable({ players, loading, title }: LeaderboardTableProps) {
+function LeaderboardTable({ players, loading }: LeaderboardTableProps) {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-48">

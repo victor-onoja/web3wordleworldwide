@@ -36,8 +36,7 @@ interface PlayerStats {
 }
 
 function App() {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [gameEndTime, setGameEndTime] = useState<number>(0);
+  const [, setGameEndTime] = useState<number>(0);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [lastGameStartTime, setLastGameStartTime] = useState<number>(0);
   const [currentGuess, setCurrentGuess] = useState<string>("");
