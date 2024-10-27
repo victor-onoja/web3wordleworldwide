@@ -14,7 +14,7 @@ contract Wordle is Ownable, ReentrancyGuard {
     uint256 public constant WORD_LENGTH = 5;
     uint256 public constant MAX_ATTEMPTS = 6;
     uint256 public entryFee = 1e6; // 1 USDC
-    uint256 public constant GAME_DURATION = 1 hours; // Reduced for testing
+    uint256 public constant GAME_DURATION = 30 minutes; // Reduced for testing
     
     string public currentWord; // Made public for testing
     uint256 public gameStartTime;
@@ -44,6 +44,7 @@ contract Wordle is Ownable, ReentrancyGuard {
     mapping(address => PlayerStats) public playerStats;
     mapping(address => PlayerAttempt[]) public playerAttempts;
     mapping(uint256 => address[]) public dailyWinners;
+    mapping(address => uint256) public playerLastGameTimestamp;
     
     event GameStarted(uint256 indexed gameId, uint256 startTime);
     event AttemptMade(address indexed player, uint256 attemptNumber, uint8[5] result);
@@ -57,11 +58,33 @@ contract Wordle is Ownable, ReentrancyGuard {
         playerCount = 0;
     }
 
-
     function _addNewPlayer(address player) private {
-        if (playerAttempts[player].length == 0) {
+        // Check if player already exists
+        bool playerExists = false;
+        for (uint256 i = 0; i < playerCount; i++) {
+            if (playerAddresses[i] == player) {
+                playerExists = true;
+                break;
+            }
+        }
+        
+        if (!playerExists) {
             playerAddresses.push(player);
             playerCount++;
+        }
+    }
+
+    function resetGame() external onlyOwner {
+        gameActive = false;
+        currentWord = "";
+        gameStartTime = 0;
+        prizePool = 0;
+        
+        // Clear all player attempts for the current game
+        for (uint256 i = 0; i < playerCount; i++) {
+            address player = playerAddresses[i];
+            delete playerAttempts[player];
+            playerLastGameTimestamp[player] = 0;
         }
     }
 
@@ -85,6 +108,13 @@ contract Wordle is Ownable, ReentrancyGuard {
     function makeAttempt(string memory guess) external nonReentrant {
         require(gameActive && !isGameExpired(), "No active game or game expired");
         require(bytes(guess).length == WORD_LENGTH, "Invalid word length");
+
+        // Reset attempts if player is starting a new game
+        if (playerLastGameTimestamp[msg.sender] < gameStartTime) {
+            delete playerAttempts[msg.sender];
+            playerLastGameTimestamp[msg.sender] = gameStartTime;
+        }
+        
         require(playerAttempts[msg.sender].length < MAX_ATTEMPTS, "Max attempts reached");
 
          // Add new player if first attempt
@@ -245,7 +275,7 @@ contract Wordle is Ownable, ReentrancyGuard {
         uint256 remaining = expired ? 0 : endTime - block.timestamp;
     
     return (
-        gameActive && !expired,
+        !expired,
         remaining,
         gameStartTime
     );

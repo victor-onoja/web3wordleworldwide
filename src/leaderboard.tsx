@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -19,58 +18,85 @@ import {
 import { Button } from "@/components/ui/button";
 import { Trophy, Medal, Award, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useReadContract } from "wagmi";
 
 interface LeaderboardProps {
-  contract: any;
-  provider: any;
+  contract: `0x${string}`;
   isConnected: boolean;
 }
 
 interface PlayerScore {
-  address: string;
+  address: `0x${string}`;
   score: number;
   rank: number;
 }
+
+type TopPlayersResponse = readonly [`0x${string}`[], bigint[]];
+
+const LEADERBOARD_ABI = [
+  {
+    name: "getTopPlayers",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "limit", type: "uint256" }],
+    outputs: [
+      { name: "players", type: "address[]" },
+      { name: "scores", type: "uint256[]" },
+    ],
+  },
+] as const;
 
 const rankIcons = {
   1: <Trophy className="h-5 w-5 text-yellow-500" />,
   2: <Medal className="h-5 w-5 text-gray-400" />,
   3: <Award className="h-5 w-5 text-amber-600" />,
-};
+} as const;
 
 export function Leaderboard({ contract, isConnected }: LeaderboardProps) {
-  const [loading, setLoading] = useState(true);
-  const [topPlayers, setTopPlayers] = useState<PlayerScore[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const fetchLeaderboard = async () => {
-    setLoading(true);
-    try {
-      // Fetch top 10 players
-      const [addresses, scores] = await contract.getTopPlayers(10);
+  const { data: topPlayersData, isLoading } = useReadContract({
+    address: contract,
+    abi: LEADERBOARD_ABI,
+    functionName: "getTopPlayers",
+    args: [10n],
+  }) as { data: TopPlayersResponse | undefined; isLoading: boolean };
 
-      const formattedScores: PlayerScore[] = addresses.map(
-        (address: string, index: number) => ({
-          address,
-          score: scores[index].toNumber(),
-          rank: index + 1,
-        })
-      );
-
-      setTopPlayers(formattedScores);
-    } catch (error) {
-      console.error("Error fetching leaderboard:", error);
-    } finally {
-      setLoading(false);
+  // Transform data only if it exists and has the correct structure
+  const topPlayers: PlayerScore[] = (() => {
+    if (!topPlayersData) {
+      return [];
     }
+
+    const [players, scores] = topPlayersData;
+    const seenAddresses = new Set<string>();
+    return players
+      .map((address, index) => ({
+        address,
+        score: Number(scores[index]),
+        rank: index + 1,
+      }))
+      .filter((player) => {
+        // Only keep the first occurrence of each address
+        if (seenAddresses.has(player.address)) {
+          return false;
+        }
+        seenAddresses.add(player.address);
+        return true;
+      })
+      .map((player, index) => ({
+        ...player,
+        rank: index + 1, // Recalculate ranks after deduplication
+      }));
+  })();
+
+  // Add debug function
+  const debugLeaderboard = () => {
+    console.log({
+      topPlayersData,
+      topPlayers,
+    });
   };
-
-  useEffect(() => {
-    if (isConnected && contract) {
-      fetchLeaderboard();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey, contract, isConnected]);
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
@@ -88,10 +114,22 @@ export function Leaderboard({ contract, isConnected }: LeaderboardProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleRefresh}
-            disabled={loading}
+            onClick={debugLeaderboard}
+            className="ml-2"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh"}
+            Debug
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Refresh"
+            )}
           </Button>
         </div>
         <CardDescription>Top players by performance</CardDescription>
@@ -106,7 +144,7 @@ export function Leaderboard({ contract, isConnected }: LeaderboardProps) {
           <TabsContent value="daily">
             <LeaderboardTable
               players={topPlayers}
-              loading={loading}
+              loading={isLoading}
               title="Today's Top Players"
             />
           </TabsContent>
@@ -114,7 +152,7 @@ export function Leaderboard({ contract, isConnected }: LeaderboardProps) {
           <TabsContent value="allTime">
             <LeaderboardTable
               players={topPlayers}
-              loading={loading}
+              loading={isLoading}
               title="All-Time Champions"
             />
           </TabsContent>
@@ -139,7 +177,7 @@ function LeaderboardTable({ players, loading }: LeaderboardTableProps) {
     );
   }
 
-  if (players.length === 0) {
+  if (!players || players.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">No players found</div>
     );
