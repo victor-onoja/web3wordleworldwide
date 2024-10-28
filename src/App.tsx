@@ -22,6 +22,7 @@ import {
   type BaseError,
 } from "wagmi";
 
+// Test USDC on Arbitrum Sepolia: 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
 const CONTRACT_ADDRESS = "0x5ed4c558469A94bbd52a70a7cb54CE04915324BB";
 interface GameStatus {
   isActive: boolean;
